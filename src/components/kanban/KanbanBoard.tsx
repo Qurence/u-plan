@@ -55,12 +55,28 @@ function CategoryMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () =
 }
 
 // Новый компонент карточки задачи
-function TaskCard({ task, onClick, children }: { task: any; onClick: () => void; children?: React.ReactNode }) {
+function TaskCard({ task, onClick, onToggleCompleted, onMembersClick, children }: { task: any; onClick: () => void; onToggleCompleted?: (completed: boolean) => void; onMembersClick?: () => void; children?: React.ReactNode }) {
   return (
     <div
-      className="relative bg-white dark:bg-zinc-800 rounded-xl shadow p-3 border border-brand-ui/10 mb-2 cursor-pointer hover:shadow-xl transition-all"
+      className={`relative bg-white dark:bg-zinc-800 rounded-xl shadow p-3 border border-brand-ui/10 mb-2 cursor-pointer hover:shadow-xl transition-all ${task.completed ? 'opacity-60 line-through' : ''}`}
       onClick={onClick}
     >
+      {/* Кастомный круглый чекбокс */}
+      {typeof onToggleCompleted === 'function' && (
+        <span
+          className="absolute left-3 top-3 z-10"
+          onClick={e => { e.stopPropagation(); }}
+        >
+          <input
+            type="checkbox"
+            checked={!!task.completed}
+            onChange={e => { onToggleCompleted(!task.completed); }}
+            className="peer appearance-none w-5 h-5 rounded-full border-2 border-brand-accent bg-white dark:bg-zinc-900 checked:bg-brand-accent checked:border-brand-accent transition-all duration-150 focus:ring-2 focus:ring-brand-accent/50 cursor-pointer shadow-sm"
+            title="Отметить как выполнено"
+          />
+          <svg className="pointer-events-none absolute top-0 left-0 w-5 h-5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" viewBox="0 0 20 20" fill="none"><path d="M6 10.5L9 13.5L14 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </span>
+      )}
       {/* Метки */}
       <div className="flex flex-wrap gap-1 mb-1">
         {task.labels?.map((label: any) => (
@@ -72,7 +88,7 @@ function TaskCard({ task, onClick, children }: { task: any; onClick: () => void;
         <img src={task.cover} alt="cover" className="w-full h-32 object-cover rounded-xl mb-2" />
       )}
       {/* Название */}
-      <div className="font-semibold text-brand-dark dark:text-white">{task.title}</div>
+      <div className="font-semibold text-brand-dark dark:text-white pl-8">{task.title}</div>
       {/* Описание */}
       {task.description && (
         <div className="text-brand-ui dark:text-brand-soft text-xs line-clamp-1">{task.description}</div>
@@ -84,14 +100,14 @@ function TaskCard({ task, onClick, children }: { task: any; onClick: () => void;
         {task.checklists?.length > 0 && <span title="Чек-листы">☑️ {task.checklists.length}</span>}
         {task.deadline && <span title="Дедлайн">⏰ {new Date(task.deadline).toLocaleDateString()}</span>}
         {/* Участники */}
-        <div className="flex -space-x-2 ml-auto">
+        <button type="button" className="flex -space-x-2 ml-auto group" onClick={e => { e.stopPropagation(); onMembersClick && onMembersClick(); }} title="Управление участниками">
           {task.members?.slice(0, 3).map((u: any) => (
-            <span key={u.id} className="w-6 h-6 rounded-full bg-brand-ui/30 flex items-center justify-center text-xs font-bold border-2 border-white dark:border-zinc-900">{u.name?.[0]}</span>
+            <span key={u.id} className="w-6 h-6 rounded-full bg-brand-ui/30 flex items-center justify-center text-xs font-bold border-2 border-white dark:border-zinc-900 group-hover:ring-2 group-hover:ring-brand-accent transition">{u.name?.[0]}</span>
           ))}
           {task.members?.length > 3 && (
             <span className="w-6 h-6 rounded-full bg-brand-ui/30 flex items-center justify-center text-xs font-bold border-2 border-white dark:border-zinc-900">+{task.members.length - 3}</span>
           )}
-        </div>
+        </button>
       </div>
       {/* Меню */}
       <div className="absolute top-2 right-2">{children}</div>
@@ -202,10 +218,10 @@ export function KanbanBoard({ initialCategories, orgId }: Props) {
   // UI
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="flex gap-6 overflow-x-auto pb-4 min-h-[400px]">
+      <div className="flex gap-6 overflow-x-auto pb-4 min-h-[400px] items-start">
         <SortableContext items={initialCategories.map(c => c.id)} strategy={verticalListSortingStrategy}>
           {initialCategories.map(category => (
-            <div key={category.id} className="flex-1 min-w-[260px] bg-white/80 dark:bg-zinc-900/80 rounded-2xl shadow-lg p-4 flex flex-col gap-4">
+            <div key={category.id} className="min-w-[260px] bg-white/80 dark:bg-zinc-900/80 rounded-2xl shadow-lg p-4 flex flex-col gap-4 h-fit">
               <div className="flex items-center justify-between mb-2">
                 <div className="font-bold text-brand-dark dark:text-white text-lg">{category.name}</div>
                 <CategoryMenu onEdit={() => {}} onDelete={() => setDeleteCategoryId(category.id)} />
@@ -227,7 +243,20 @@ export function KanbanBoard({ initialCategories, orgId }: Props) {
                 <div className="flex flex-col gap-3">
                   {category.tasks.length === 0 && <div className="text-brand-ui/70 text-sm">Нет задач</div>}
                   {category.tasks.map(task => (
-                    <TaskCard key={task.id} task={task} onClick={() => { setSelectedTask(task); setModalOpen(true); }}>
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onClick={() => { setSelectedTask(task); setModalOpen(true); }}
+                      onToggleCompleted={async (completed) => {
+                        await fetch("/api/tasks/update", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id: task.id, data: { completed } }),
+                        });
+                        // router.refresh() не нужен, Ably обновит
+                      }}
+                      onMembersClick={() => {/* TODO: открыть модалку управления участниками */}}
+                    >
                       <TaskMenu onEdit={() => { setSelectedTask(task); setModalOpen(true); }} onArchive={() => {}} onDelete={() => setDeleteTaskId(task.id)} />
                     </TaskCard>
                   ))}

@@ -97,10 +97,10 @@ export default async function OrganizationPage({ params }: { params: { id: strin
         <OrganizationMembers orgId={org.id} memberships={org.memberships} />
       </header>
       {/* Основной контент Dashboard */}
-      <main className="flex-1 flex flex-col items-center w-full overflow-x-auto">
-        <div className="w-full max-w-full flex flex-col gap-8 px-2 sm:px-6 py-6 animate-fade-in-up">
+      <main className="flex-1 flex flex-col items-center w-full h-full overflow-x-auto">
+        <div className="w-full max-w-full h-full flex flex-col gap-8 px-2 sm:px-6 py-6 animate-fade-in-up">
           {/* KanbanBoard на весь экран */}
-          <div className="w-full overflow-x-auto">
+          <div className="w-full h-full overflow-x-auto">
             <KanbanBoard initialCategories={categories} orgId={org.id} />
           </div>
         </div>
